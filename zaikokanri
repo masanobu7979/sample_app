@@ -1,0 +1,146 @@
+<?php
+
+ini_set( 'display_errors', 1 );
+ini_set( 'error_reporting', E_ALL );
+
+$mysqli = new mysqli('localhost', 'root', '', 'stock');
+        /* 接続状況をチェックします */
+        if (mysqli_connect_errno()) {
+            printf("Connect failed: %s\n", mysqli_connect_error());
+            exit();
+        }
+$mysqli->set_charset("utf-8");
+//nameを変数に格納
+if(isset($_GET['name'])){
+        $name = $_GET['name'];
+}else{
+        $name = null;
+}
+//amount省略の場合1を代入負の数や少数の場合はERRORで処理中止
+if(isset($_GET['amount'])){
+        $amount = $_GET['amount'];
+        if(preg_match('/\./', $amount) || $amount < 0){
+                echo 'ERROR';
+                exit;
+        }
+}else{
+        $amount = 1;
+}
+//在庫の追加
+if ($_GET["function"] == "addstock"){
+//SQL プリペアドステートメント登録
+$stmt = $mysqli->prepare("INSERT INTO stock (name, amount) VALUES (?, ?)");
+
+//パラメータを指定
+$stmt->bind_param('si', $name, $amount);
+//run
+$result = $stmt->execute();
+
+$stmt->close();
+$mysqli->close();
+
+}elseif($_GET["function"] == "checkstock"){
+//名前指定がないときは全データで在庫があるものだけ
+if($name == null){
+        // stockテーブルのnameのデータを取得する
+        $sql = 'SELECT name, amount FROM stock WHERE amount > 0 ORDER BY name ASC';
+        // クエリを実行します。
+   if($result = $mysqli->query($sql)) {
+
+        while ($row = $result->fetch_row()){
+                printf ("%s: %s\n", $row[0], $row[1]);
+        }
+   }
+}else{
+        //特定のnameのデータのみ表示amountデータがない場合は0で表示
+        $stmt = $mysqli->prepare("SELECT name, amount FROM stock WHERE name = ?");
+
+        /* マーカにパラメータをバインドします */
+        $stmt->bind_param("s", $name);
+
+        /* クエリを実行します */
+        $stmt->execute();
+
+        /* 結果変数をバインドします */
+        $stmt->bind_result($unique, $data);
+
+        /* 値を取得します */
+        $stmt->fetch();
+        if($data == null){
+        echo $unique.':0';
+        }else{
+        echo $unique.':'.$data;
+        }
+        $stmt->close();
+}
+
+}elseif ($_GET["function"] == "sell"){
+//selectで現在の在庫と売り上げを確認
+$stmt = $mysqli->prepare("SELECT amount, sales FROM stock WHERE name=?");
+
+    /* マーカにパラメータをバインドします */
+    $stmt->bind_param("s", $name);
+
+    /* クエリを実行します */
+    $stmt->execute();
+
+    /* 結果変数をバインドします */
+    $stmt->bind_result($volume, $sales);
+    /* 値を取得します */
+    $stmt->fetch();
+    $stmt->close();
+    //売れた後の在庫を変数に格納
+    $stock = $volume - $amount;
+//priceが入力された場合
+if(isset($_GET['price'])){
+        $price = $_GET['price'];
+        if($price < 0){
+        echo 'ERROR';
+        exit;
+        }
+        $sell = $amount * $price;
+        $sales += $sell;
+         //updateで売り上げと在庫を更新
+         $stmt = $mysqli->prepare("UPDATE stock SET amount = ?, sales = ? WHERE name = ?");
+         $stmt->bind_param('ids', $stock, $sales, $name);
+         $result = $stmt->execute();
+         $stmt->close();
+         $mysqli->close();
+
+}else{
+//priceが指定されていない時
+$price = null;
+//updateでテーブルを更新
+$stmt = $mysqli->prepare("UPDATE stock SET amount = ? WHERE name = ?");
+$stmt->bind_param('is', $stock, $name);
+$result = $stmt->execute();
+$stmt->close();
+$mysqli->close();
+
+}
+
+
+}elseif ($_GET["function"] == "checksales"){
+
+$sql = "SELECT SUM(sales) as sum_sales FROM stock";
+   if($result = $mysqli->query($sql)) {
+        foreach ($result as $row) {
+        //少数第二位で切り上げ
+        echo 'sales: '.ceil($row['sum_sales']*100) / 100 ;
+        }
+   }
+
+}elseif ($_GET["function"] == "deleteall"){
+// stockテーブルのレコードを削除する
+$sql = "DELETE FROM stock";
+// クエリを実行します。
+if ($mysqli->query($sql)) {
+   echo "DELETE に成功しました。\n";
+}
+
+}else{
+    echo 'ERROR';
+    exit;
+}
+
+?>
