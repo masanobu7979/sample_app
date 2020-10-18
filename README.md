@@ -1,3 +1,8 @@
+Rails Tutorialを学習し
+herokuにデプロイしております。
+https://nameless-wave-27701.herokuapp.com/
+
+
 # Ruby on Rails チュートリアルのサンプルアプリケーション
 
 これは、次の教材で作られたサンプルアプリケーションです。   
